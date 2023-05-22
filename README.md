@@ -19,3 +19,5 @@ docker-compose down -v
 ```bash
 docker inspect pg_container
 ```
+
+Postgres (Database) [dag]>> sensors >> Transform in MinIO[dag]
