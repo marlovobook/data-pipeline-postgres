@@ -5,24 +5,21 @@ from tempfile import NamedTemporaryFile
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from airflow.operators.dummy import DummyOperator
+from airflow.operators.postgres_operator import PostgresOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 
-default_args = {
-    'owner' : 'BOOK',
-    'retries': 1,
-    'retry_delay': timedelta(seconds=10)
-}
+import pandas as pd
 
-def fetch_from_postgres(ds_nodash, next_ds_nodash):
+
+def _fetch_from_postgres(ds_nodash, next_ds_nodash):
     # Connect to PostgreSQL
     hook = PostgresHook(postgres_conn_id='pg_container')
 
     #step 1 : query data form postgresq db
     conn = hook.get_conn()
     cursor = conn.cursor()
-    # 1st %s = string of the start date (ds_nodash), 2nd %s = string = string of todaydate as interval =@Daily
+    # %s = string of current date
     cursor.execute("SELECT * FROM dbo.table_product_demand WHERE date >=  %s and date < %s", (ds_nodash, next_ds_nodash))
     data = cursor.fetchall()
 
@@ -41,30 +38,26 @@ def fetch_from_postgres(ds_nodash, next_ds_nodash):
         conn.close()
         logging.info("Saved demand data: %s", csv_file_path)
 
+        # # Step 2: Transform data using pandas
+        # df = pd.read_csv(csv_file_path)
+        # df['local_arabica'] = df.apply(lambda row: 0 if row['product_name'] == 'expensive' else (20 * row['demand'] if row['product_name'] == 'cheap' else 10 * row['demand']), axis=1)
+        # df['foreign_arabica'] = df.apply(lambda row: 0 if row['product_name'] == 'cheap' else (10 * row['demand'] if row['product_name'] in ['medium', 'expensive'] else 0), axis=1)
+        # df['robusta'] = df.apply(lambda row: 0 if row['product_name'] in ['cheap', 'medium'] else 10 * row['demand'], axis=1)
+
+        # # Step 3: Save transformed data as CSV
+        # transformed_csv_file_path = f"dags/transformed_orders_{ds_nodash}.csv"  # Specify the desired path for the transformed file
+        # df.to_csv(transformed_csv_file_path, index=False)
+        # logging.info("Transformed orders data: %s", transformed_csv_file_path)    
+
     #step 2 : Store .csv file into S3
 
         s3_hook = S3Hook(aws_conn_id="minio")
         s3_hook.load_file(
             filename=f.name,
-            #yyyy/mm/dd
             key=f"orders/{ds_nodash}.csv",
             bucket_name="datalake",
             replace=True
         )
         logging.info("Orders file %s has been pushed to S3!", f.name)
-        logging.info("Orders file %s has been pushed to S3!", ds_nodash)
 
-with DAG(
-        dag_id='hook_postgres_to_minio_V03',
-        default_args=default_args,
-        start_date=datetime(2023, 2, 18),
-        schedule_interval='@daily'
-    ) as dag:
 
-        task1 = PythonOperator(
-            task_id='fetch_from_postgres',
-            python_callable=fetch_from_postgres
-        )
-
-        
-        fetch_from_postgres
