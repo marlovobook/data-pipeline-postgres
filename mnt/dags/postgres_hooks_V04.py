@@ -12,7 +12,7 @@ import pandas as pd
 default_args = {
     'owner': 'BOOK',
     'retries': 1,
-    'retry_delay': timedelta(seconds=10)
+    'retry_delay': timedelta(seconds=5)
 }
 
 def _fetch_from_postgres(ds_nodash, next_ds_nodash):
@@ -51,35 +51,35 @@ def _transform_data(ds_nodash, **kwargs):
     s3_key = f"orders/{ds_nodash}.csv"  # Specify the S3 key of the downloaded file
     s3_bucket = "datalake"  # Specify the S3 bucket name
     s3_hook = S3Hook(aws_conn_id="minio")
-    csv_file_path = s3_hook.read_key(key=s3_key, bucket_name=s3_bucket)
+    #csv_file_path = s3_hook.read_key(key=s3_key, bucket_name=s3_bucket)
 
-    # Step 2: Transform data using pandas
-    #csv_file_path = f"dags/get_orders_{ds_nodash}.csv"  # Specify the path of the downloaded file
+    # # Step 2: Transform data using pandas
+    csv_file_path = f"{ds_nodash}.csv"  # Specify the path of the downloaded file
     df = pd.read_csv(csv_file_path)
-    df['local_arabica'] = df.apply(lambda row: 0 if row['product_name'] == 'expensive' else (20 * row['demand'] if row['product_name'] == 'cheap' else 10 * row['demand']), axis=1)
-    df['foreign_arabica'] = df.apply(lambda row: 0 if row['product_name'] == 'cheap' else (10 * row['demand'] if row['product_name'] in ['medium', 'expensive'] else 0), axis=1)
-    df['robusta'] = df.apply(lambda row: 0 if row['product_name'] in ['cheap', 'medium'] else 10 * row['demand'], axis=1)
+    # df['local_arabica'] = df.apply(lambda row: 0 if row['product_name'] == 'expensive' else (20 * row['demand'] if row['product_name'] == 'cheap' else 10 * row['demand']), axis=1)
+    # df['foreign_arabica'] = df.apply(lambda row: 0 if row['product_name'] == 'cheap' else (10 * row['demand'] if row['product_name'] in ['medium', 'expensive'] else 0), axis=1)
+    # df['robusta'] = df.apply(lambda row: 0 if row['product_name'] in ['cheap', 'medium'] else 10 * row['demand'], axis=1)
 
-    # Step 3: Save transformed data as CSV
-    transformed_csv_file_path = f"dags/transformed_orders_{ds_nodash}.csv"  # Specify the desired path for the transformed file
-    df.to_csv(transformed_csv_file_path, index=False)
-    logging.info("Transformed orders data: %s", transformed_csv_file_path)
+    # # Step 3: Save transformed data as CSV
+    # transformed_csv_file_path = f"dags/transformed_orders_{ds_nodash}.csv"  # Specify the desired path for the transformed file
+    # df.to_csv(transformed_csv_file_path, index=False)
+    # logging.info("Transformed orders data: %s", transformed_csv_file_path)
 
-    # Step 4: Upload transformed CSV file to MinIO
-    #transformed_s3_key = f"orders/transformed_orders_{ds_nodash}.csv"  # Specify the S3 key for the transformed file
-    # Step 4: Upload transformed CSV file to MinIO
-    s3_hook.load_file(
-        filename=transformed_csv_file_path,
-        key=f"orders/transformed_orders_{ds_nodash}.csv",
-        bucket_name="datalake",
-        replace=True
-    )
-    logging.info("Transformed orders file has been pushed to S3!")
+    # # Step 4: Upload transformed CSV file to MinIO
+    # #transformed_s3_key = f"orders/transformed_orders_{ds_nodash}.csv"  # Specify the S3 key for the transformed file
+    # # Step 4: Upload transformed CSV file to MinIO
+    # s3_hook.load_file(
+    #     filename=transformed_csv_file_path,
+    #     key=f"orders/transformed_orders_{ds_nodash}.csv",
+    #     bucket_name="datalake",
+    #     replace=True
+    # )
+    logging.info(f"Transformed orders {s3_key} file has been pushed to S3! %s {csv_file_path}")
 
 with DAG(
         dag_id='hook_postgres_to_minio_V04',
         default_args=default_args,
-        start_date=datetime(2023, 4, 8),
+        start_date=datetime(2023, 5, 20),
         schedule_interval='@daily'
 ) as dag:
     

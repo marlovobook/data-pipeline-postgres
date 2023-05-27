@@ -9,13 +9,14 @@ from airflow.operators.dummy import DummyOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.amazon.aws.hooks.s3 import S3Hook
 from airflow.providers.amazon.aws.transfers.s3_to_sql import S3ToSqlOperator
+
 default_args = {
     'owner' : 'BOOK',
     'retries': 1,
     'retry_delay': timedelta(seconds=10)
 }
 
-def fetch_from_postgres(ds_nodash, next_ds_nodash):
+def _fetch_from_postgres(ds_nodash, next_ds_nodash):
     # Connect to PostgreSQL
     hook = PostgresHook(postgres_conn_id='pg_container')
 
@@ -47,23 +48,40 @@ def fetch_from_postgres(ds_nodash, next_ds_nodash):
         s3_hook.load_file(
             filename=f.name,
             #yyyy/mm/dd
-            key=f"orders/table_product_demand_{ds_nodash}.csv",
+            key=f"orders/{ds_nodash}.csv",
             bucket_name="datalake",
             replace=True
         )
         logging.info("Orders file %s has been pushed to S3!", f.name)
         logging.info("Orders file %s has been pushed to S3!", ds_nodash)
 
+def parse_csv_to_list(filepath):
+
+    with open(filepath, newline="") as file:
+        return [row for row in csv.reader(file)]
+
+
 with DAG(
-        dag_id='hook_postgres_to_minio_V03',
+        dag_id='hook_postgres_to_minio_V05',
         default_args=default_args,
         start_date=datetime(2023, 2, 18),
         schedule_interval='@daily'
     ) as dag:
 
-        task1 = PythonOperator(
+        fetch_from_postgres = PythonOperator(
             task_id='fetch_from_postgres',
-            python_callable=fetch_from_postgres
+            python_callable=_fetch_from_postgres
+        )
+
+        s3_key = get_dynamic_s3_key
+        transfer_s3_to_sql = S3ToSqlOperator(
+            task_id="transfer_s3_to_sql",
+            s3_bucket='datalake',
+            s3_key=s3_key,
+            table=SQL_TABLE_NAME,
+            column_list=SQL_COLUMN_LIST,
+            parser=parse_csv_to_list,
+            sql_conn_id=conn_id_name,
         )
 
         
