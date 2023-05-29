@@ -56,11 +56,12 @@ with DAG(
         task_id='transform_to_demand',
         source_s3_key=f's3://datalake/src_test/table_product_demand_{{{{ds}}}}.csv',
         dest_s3_key=f's3://datalake/src_test_demand/table_material_demand_{{{{ds}}}}.csv',
+        transform_script='dags/scripts/product_to_demand.py',
         #transform_script='cp',
-        select_expression=f"SELECT product, demand FROM table_product_demand_2023-05-27.csv",      
+       #select_expression=f"SELECT product, demand FROM table_product_demand_2023-05-27.csv",      
         source_aws_conn_id='minio',
         dest_aws_conn_id='minio',
-        replace=True,
+        replace=True
         )
 
     # transform_s3 = PythonOperator(

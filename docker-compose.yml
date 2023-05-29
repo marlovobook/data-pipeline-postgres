@@ -16,7 +16,7 @@ x-airflow-common:
     AIRFLOW__SMTP__SMTP_SSL: 'false'
     AIRFLOW__SMTP__SMTP_PORT: 1025
     AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL: 15
-    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:- astronomer-providers astro-sdk-python==1.6.0}
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-}
   volumes:
     - ./mnt/dags:/opt/airflow/dags
     - ./mnt/tests:/opt/airflow/tests
@@ -45,7 +45,6 @@ services:
 
   airflow-webserver:
     <<: *airflow-common
-    command: webserver
     ports:
       - 8080:8080
     healthcheck:
@@ -58,6 +57,8 @@ services:
       <<: *airflow-common-depends-on
       airflow-init:
         condition: service_completed_successfully
+    command: webserver
+
 
   airflow-scheduler:
     <<: *airflow-common
@@ -135,7 +136,7 @@ services:
           echo "   https://airflow.apache.org/docs/apache-airflow/stable/start/docker.html#before-you-begin"
           echo
         fi
-        mkdir -p /sources/logs /sources/dags /sources/plugins
+        mkdir -p /sources/logs /sources/dags/scripts /sources/plugins
         chown -R "${AIRFLOW_UID}:${AIRFLOW_GID}" /sources/{logs,dags,plugins}
         exec /entrypoint airflow version
     environment:

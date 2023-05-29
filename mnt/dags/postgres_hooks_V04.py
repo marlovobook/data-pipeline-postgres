@@ -46,11 +46,28 @@ def _fetch_from_postgres(ds_nodash, next_ds_nodash):
         )
         logging.info("Orders file %s has been pushed to S3!", f.name)
 
+
+def _download_file_from_s3(**context):
+    ds_nodash = context["ds_nodash"]
+
+    # Download file from S3
+    s3_hook = S3Hook(aws_conn_id="minio")
+    file_name = s3_hook.download_file(
+        key=f"orders/{ds_nodash}.csv",
+        bucket_name="datalake",
+    )
+
+    return file_name
+
 def _transform_data(ds_nodash, **kwargs):
+
     
     s3_key = f"orders/{ds_nodash}.csv"  # Specify the S3 key of the downloaded file
     s3_bucket = "datalake"  # Specify the S3 bucket name
     s3_hook = S3Hook(aws_conn_id="minio")
+    s3_conn = s3_hook.get_conn()
+
+
     #csv_file_path = s3_hook.read_key(key=s3_key, bucket_name=s3_bucket)
 
     # # Step 2: Transform data using pandas
@@ -83,14 +100,14 @@ with DAG(
         schedule_interval='@daily'
 ) as dag:
     
-    task1 = PythonOperator(
+    fetch_from_postgres = PythonOperator(
         task_id='fetch_from_postgres',
         python_callable=_fetch_from_postgres
     )
 
-    task2 = PythonOperator(
-        task_id='transform_data',
-        python_callable=_transform_data,
+    download_file_from_s3 = PythonOperator(
+        task_id='download_file_from_s3',
+        python_callable=_download_file_from_s3,
         provide_context=True
 
     )
@@ -98,4 +115,4 @@ with DAG(
 
 
 
-    task1 >> task2
+    fetch_from_postgres >> download_file_from_s3
