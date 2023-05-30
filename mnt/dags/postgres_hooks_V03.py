@@ -3,7 +3,9 @@ import logging
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
 
+
 from airflow import DAG
+
 from airflow.operators.python import PythonOperator
 from airflow.operators.dummy import DummyOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
