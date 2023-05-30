@@ -73,16 +73,16 @@ with DAG(
             python_callable=_fetch_from_postgres
         )
 
-        s3_key = get_dynamic_s3_key
-        transfer_s3_to_sql = S3ToSqlOperator(
-            task_id="transfer_s3_to_sql",
-            s3_bucket='datalake',
-            s3_key=s3_key,
-            table=SQL_TABLE_NAME,
-            column_list=SQL_COLUMN_LIST,
-            parser=parse_csv_to_list,
-            sql_conn_id=conn_id_name,
-        )
+        # #s3_key = get_dynamic_s3_key
+        # transfer_s3_to_sql = S3ToSqlOperator(
+        #     task_id="transfer_s3_to_sql",
+        #     s3_bucket='datalake',
+        #     s3_key=s3_key,
+        #     table=SQL_TABLE_NAME,
+        #     column_list=SQL_COLUMN_LIST,
+        #     parser=parse_csv_to_list,
+        #     sql_conn_id=conn_id_name,
+        # )
 
         
-        fetch_from_postgres
+        # fetch_from_postgres

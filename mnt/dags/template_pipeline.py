@@ -54,26 +54,24 @@ def rename_file(ti, new_name: str) -> None:
     downloaded_file_path = '/'.join(downloaded_file_name[0].split('/')[:-1])
     os.rename(src=downloaded_file_name[0], dst=f"{downloaded_file_path}/{new_name}")
 
-def transform_product_to_material(ds, next_ds):
+session_folder = f"src/session/{{{{execution_date.strftime('%Y/%m')}}}}/table_product_demand_{{{{ds}}}}.csv"
+
+def transform_product_to_material(ds, next_ds, data_interval_start):
     # Read CSV file using Pandas
     df = pd.read_csv('dags/temp/table_product_demand.csv', index_col=False)
     # Perform query on the data 
     df = df.query(f"date >= '{ds}' and date < '{next_ds}'")
     # Upload query result back to S3
-    query_result_csv = f'dags/result_csv/"{{{{ds}}}}".csv'
+    query_result_csv = f'dags/result_csv/TEMP_FILE.csv'
     df.to_csv(query_result_csv, index=False)
+    ds_str = data_interval_start.strftime('%Y/%m')
     s3_hook.load_file(
         filename=query_result_csv,
-        key=f"src/session/table_product_demand_{ds}.csv",
-          bucket_name='datalake',
-          replace=True
+        key=f"src/session/{ds_str}/table_product_demand_{ds}.csv",
+        #key=f"src/session/{ds.strftime('%Y/%m')}/table_product_demand_{ds}.csv",
+        bucket_name='datalake',
+        replace=True
           )
-
-
-  
-    
-    
-
 
 
 # Define your DAG
@@ -86,33 +84,21 @@ with DAG(
     
     start = DummyOperator(task_id="start")
 
-    fetch_from_database = SqlToS3Operator(
-        task_id="fetch_from_database",
-        sql_conn_id='pg_container',
-        query='SELECT * FROM dbo.table_product_demand',
-        aws_conn_id="minio",
-        s3_bucket='datalake',
-        s3_key=f"src/table_product_demand.csv",
-        replace=True,
-        file_format="csv",
-        pd_kwargs={"index": False}
-    )
-
-    transform_s3 = AthenaOperator(
-        task_id="transform_s3",
-        aws_conn_id="minio",
-        database="minio",
-        query= f"SELECT * FROM table_product_demand WHERE date >= '{{{{ds}}}}' AND date < '{{{{next_ds_nodash}}}}'",
-        output_location=f"s3://datalake/src/session/{{{{execution_date.strftime('%Y/%m')}}}}/table_product_demand_{{{{ds}}}}.csv",
-        #region_name="us-west-rack-2"
-    )
-
-  
+    # fetch_from_database = SqlToS3Operator(
+    #     task_id="fetch_from_database",
+    #     sql_conn_id='pg_container',
+    #     query='SELECT * FROM dbo.table_product_demand',
+    #     aws_conn_id="minio",
+    #     s3_bucket='datalake',
+    #     s3_key=f"src/table_product_demand.csv",
+    #     replace=True,
+    #     file_format="csv",
+    #     pd_kwargs={"index": False}
+    # )
    
     task_download_from_s3 = PythonOperator(
         task_id='download_from_s3',
-        python_callable=download_from_s3,
-      
+        python_callable=download_from_s3,  
     )
 
     task_rename_file = PythonOperator(
@@ -131,4 +117,5 @@ with DAG(
     end = DummyOperator(task_id='end')
 
     # Set task dependencies
-    start >> fetch_from_database  >> task_download_from_s3 >> task_rename_file >> task_upload_to_s3 >> end
+    #fetch_from_database file to big temp stop
+    start  >> task_download_from_s3 >> task_rename_file >> task_upload_to_s3 >> end
