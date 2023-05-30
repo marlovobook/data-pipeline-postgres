@@ -137,7 +137,7 @@ with DAG(
         python_callable=_transform
     )
 
-
+    ##select_expression=f"SELECT * FROM table_product_demand.csv WHERE date >= '{{{{ds}}}}' AND date < '{{{{next_ds_nodash}}}}'",
     # upload_to_postgres = S3ToSqlOperator(
     #     task_id='upload_to_postgres',
     #     s3_bucket='minio',
