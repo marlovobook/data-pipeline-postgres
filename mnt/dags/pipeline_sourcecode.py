@@ -96,16 +96,15 @@ ORDER BY
 
 """
 
-def _download_file_from_datalake(**context):
-    ds = context["ds"]
+def _download_file_from_datalake():
+    #ds = context["ds"]
 
     # Download File from S3
 
     s3_hook = S3Hook(aws_conn_id="minio")
     file_name = s3_hook.download_file(
-        key=s3_folder_material,
+        key=f"session_material/{{{{execution_date.strftime('%Y/%m')}}}}/table_material_demand_{{{{ds}}}}.csv",
         bucket_name="datalake",
-        replace=True,
     )
 
     return file_name
@@ -171,6 +170,13 @@ with DAG(
         file_format="csv",
         pd_kwargs={"index": False},
         replace=True,
+    )
+
+    #download file from datalake 
+
+    download_file_from_datalake = PythonOperator(
+        task_id="download_file_from_datalake",
+        python_callable=_download_file_from_datalake
     )
 
     #Temp table for imported data
@@ -250,4 +256,4 @@ with DAG(
     end = DummyOperator(task_id='end')
 
     # Set task dependencies
-    start >> sql_to_s3_task >> sql_to_s3_task_material  >> create_table_in_data_warehouse_import >> load_data_into_data_warehouse >> create_final_table >> merge_import_into_final_table >> clear_import_table >> end
+    start >> sql_to_s3_task >> sql_to_s3_task_material >> download_file_from_datalake >> create_table_in_data_warehouse_import >> load_data_into_data_warehouse >> create_final_table >> merge_import_into_final_table >> clear_import_table >> end
