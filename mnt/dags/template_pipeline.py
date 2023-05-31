@@ -35,7 +35,7 @@ s3_key='src/table_product_demand.csv'
 def download_from_s3():
     s3_hook = S3Hook(aws_conn_id='minio')
     s3_bucket ='datalake'
-    s3_key =f'/src/table_product_demand.csv'
+    s3_key =f'/src/table_material_demand.csv'
     
     # Download CSV file from S3
     local_path = 'dags/temp'
@@ -58,8 +58,25 @@ session_folder = f"src/session/{{{{execution_date.strftime('%Y/%m')}}}}/table_pr
 
 def transform_product_to_material(ds, next_ds, data_interval_start):
     # Read CSV file using Pandas
-    df = pd.read_csv('dags/temp/table_product_demand.csv', index_col=False)
-    # Perform query on the data 
+    df = pd.read_csv('dags/temp/table_material_demand.csv', index_col=False)
+   
+    
+    # Transform Product to Materials
+    # df['local_arabica'] = df.apply(lambda row: 0 if row['product_name'] == 'expensive' else (20*row['demand'] if row['product_name'] == 'cheap' else 10* row['demand']) , axis=1 )
+    # df['foreign_arabica'] = df.apply(lambda row: 0 if row['product_name'] == 'cheap' else (10*row['demand'] if row['product_name'] in ['medium','expensive'] else 0), axis=1)
+    # df['robusta'] = df.apply(lambda row: 0 if row['product_name'] in ['cheap', 'medium'] else 10*row['demand'], axis=1)
+    # #Agg
+    # df = df.groupby(['date', 'shop_id'], as_index=False).agg({'local_arabica': 'sum', 'foreign_arabica': 'sum', 'robusta': 'sum'})
+    # #melt coffee beans columns into raw_material rows
+    # df = pd.melt(df, id_vars=['date', 'shop_id'], var_name='raw_material', value_name='demand')
+    # #change demand (g) into (kg)
+    # df['demand_kg'] = df['demand'] / 1000
+    # df = df.drop(columns = ['demand'])
+    # # #if sort by date
+    # # df = df.sort_values(['date'], ['shop_id'])
+    # # df = df.reset_index(drop=True)
+    # #df['date'] = df['date'].astype('dbdate')
+    # # Perform query on the data 
     df = df.query(f"date >= '{ds}' and date < '{next_ds}'")
     # Upload query result back to S3
     query_result_csv = f'dags/result_csv/TEMP_FILE.csv'
@@ -67,7 +84,7 @@ def transform_product_to_material(ds, next_ds, data_interval_start):
     ds_str = data_interval_start.strftime('%Y/%m')
     s3_hook.load_file(
         filename=query_result_csv,
-        key=f"src/session/{ds_str}/table_product_demand_{ds}.csv",
+        key=f"src/session/{ds_str}/table_material_demand_{ds}.csv",
         #key=f"src/session/{ds.strftime('%Y/%m')}/table_product_demand_{ds}.csv",
         bucket_name='datalake',
         replace=True
@@ -79,7 +96,7 @@ with DAG(
     dag_id='pipeline_full_v1',
     description='Copy file from PostgreSQL to MinIO, transform data in S3, and upload back to PostgreSQL',
     schedule_interval='@daily',  # Set your desired schedule interval
-    start_date=datetime(2023, 5, 25),  # Set the start date of the DAG
+    start_date=datetime(2023, 5, 20),  # Set the start date of the DAG
 )as dags:
     
     start = DummyOperator(task_id="start")
@@ -105,7 +122,7 @@ with DAG(
         task_id='rename_file',
         python_callable=rename_file,
         op_kwargs={
-            'new_name': 'table_product_demand.csv'
+            'new_name': 'table_material_demand.csv'
         }
     )
 
@@ -118,4 +135,8 @@ with DAG(
 
     # Set task dependencies
     #fetch_from_database file to big temp stop
-    start  >> task_download_from_s3 >> task_rename_file >> task_upload_to_s3 >> end
+
+    ##download from datalake -> local for transforming -> postgres (as a datawarehouse)
+    start  >> task_download_from_s3 >> task_rename_file >> task_upload_to_s3 >> download_transformed_file end
+
+    download_transformed_file >> create_table_in_data_warehouse >> load_data_into_data_warehouse
