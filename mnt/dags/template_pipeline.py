@@ -103,10 +103,11 @@ def  _load_data_into_data_warehouse(**context):
             COPY
                 dbo.table_material_demand
 
-            FROM STDIN DELIMITER ',' CSV
+            FROM STDIN DELIMITER ',' CSV HEADER
     
         """,
         file_name_material,
+    
 
     )
 
@@ -115,7 +116,7 @@ with DAG(
     dag_id='pipeline_full_v2',
     description='Copy file from PostgreSQL to MinIO, transform data in S3, and upload back to PostgreSQL',
     schedule_interval='@daily',  # Set your desired schedule interval
-    start_date=datetime(2023, 5, 20),  # Set the start date of the DAG
+    start_date=datetime(2023, 4, 20),  # Set the start date of the DAG
 )as dags:
     
     start = DummyOperator(task_id="start")
@@ -161,6 +162,7 @@ with DAG(
         task_id="load_data_into_data_warehouse",
         python_callable=_load_data_into_data_warehouse
     )
+
 
 
     end = DummyOperator(task_id='end')
