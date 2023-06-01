@@ -7,25 +7,17 @@ import boto3
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
 import boto3
-from airflow.models import Variable
+
 
 from airflow import DAG
-from airflow.contrib.hooks.aws_hook import AwsHook
-from airflow.providers.amazon.aws.operators.s3 import S3FileTransformOperator
+
 from airflow.operators.python_operator import PythonOperator
 from airflow.providers.amazon.aws.transfers.sql_to_s3 import SqlToS3Operator
-from airflow.providers.amazon.aws.transfers.s3_to_sql import S3ToSqlOperator
 from airflow.hooks.postgres_hook import PostgresHook
 from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.dummy import DummyOperator
-from airflow.providers.amazon.aws.operators.athena import AthenaOperator
 
-default_args = {
-    'owner' : 'BOOK',
-    'retries': 1,
-    'retry_delay': timedelta(seconds=10),
-    'catchup' : False
-}
+
 s3_hook = S3Hook(aws_conn_id='minio')
 postgres_hook = PostgresHook(postgres_conn_id='pg_container')
 bucket_name = 'datalake'
@@ -38,6 +30,7 @@ def download_from_s3():
     s3_key =f'/src/table_product_demand.csv'
     
     # Download CSV file from S3
+    #Temp file for Raw Data (table_product_demand) from S3
     local_path = 'dags/temp'
     #f'/temp/session/{{{{ds}}}}.csv'
     file_name = s3_hook.download_file(
@@ -56,11 +49,12 @@ def rename_file(ti, new_name: str) -> None:
 
 session_folder = f"src/session/{{{{execution_date.strftime('%Y/%m')}}}}/table_product_demand_{{{{ds}}}}.csv"
 
-def transform_product_to_material(ds, next_ds, data_interval_start):
+### Transform product demand into material demand with full file
+#def transform_product_to_material(ds, next_ds, data_interval_start): <---- for using jinja template
+def transform_product_to_material():
     # Read CSV file using Pandas
     df = pd.read_csv('dags/temp/table_product_demand.csv', index_col=False)
    
-    
     # Transform Product to Materials
     df['local_arabica'] = df.apply(lambda row: 0 if row['product_name'] == 'expensive' else (20*row['demand'] if row['product_name'] == 'cheap' else 10* row['demand']) , axis=1 )
     df['foreign_arabica'] = df.apply(lambda row: 0 if row['product_name'] == 'cheap' else (10*row['demand'] if row['product_name'] in ['medium','expensive'] else 0), axis=1)
@@ -72,16 +66,25 @@ def transform_product_to_material(ds, next_ds, data_interval_start):
     #change demand (g) into (kg)
     df['demand_kg'] = df['demand'] / 1000
     df = df.drop(columns = ['demand'])
-    # #if sort by date
+    
+    # ------------------   if sort by date ------------------#
+
     # df = df.sort_values(['date'], ['shop_id'])
     # df = df.reset_index(drop=True)
-    #df['date'] = df['date'].astype('dbdate')
-    # Perform query on the data 
+    #df['date'] = df['date'].astype('dbdate') <--- gcp syntax, please check if you want to use (probably pd.to_datetime | df = pd.to_datetime(df['date']))
+
+    # ------------------   if sort by date ------------------#
+
+    # ------------- Perform query on the data <<--This will be on another dag -----------------#
+
     #df = df.query(f"date >= '{ds}' and date < '{next_ds}'")
+
+    # ------------- Perform query on the data <<--This will be on another dag -----------------#
+
     # Upload query result back to S3
     query_result_csv = f'dags/result_csv/TEMP_FILE.csv'
     df.to_csv(query_result_csv, index=False)
-    ds_str = data_interval_start.strftime('%Y/%m')
+    #ds_str = data_interval_start.strftime('%Y/%m')
     s3_hook.load_file(
         filename=query_result_csv,
         key=f"src/table_material_demand.csv",
@@ -90,13 +93,20 @@ def transform_product_to_material(ds, next_ds, data_interval_start):
         replace=True
           )
 
-
+default_args = {
+    'owner' : 'BOOK',
+    'retries': 1,
+    'retry_delay': timedelta(seconds=10),
+    'catchup' : False
+}
 # Define your DAG
 with DAG(
     dag_id='01_database_to_datalake',
+    default_args=default_args,
     description='Copy file from PostgreSQL(database) to MinIO(datalake), the transform and load will be in another dag file',
     schedule_interval=None,  # Set your desired schedule interval '@daily'
     start_date=datetime(2023, 5, 25),  # Set the start date of the DAG
+
 )as dags:
     
     start = DummyOperator(task_id="start")
@@ -104,13 +114,13 @@ with DAG(
     fetch_from_database = SqlToS3Operator(
         task_id="fetch_from_database",
         sql_conn_id='pg_container',
-        query='SELECT * FROM dbo.table_product_demand',
+        query='SELECT * FROM dbo.table_product_demand', #<<--- Basically copy everything
         aws_conn_id="minio",
         s3_bucket='datalake',
         s3_key=f"src/table_product_demand.csv",
         replace=True,
         file_format="csv",
-        pd_kwargs={"index": False}
+        pd_kwargs={"index": False} #<<---- if True, they will be another column containing numbers
     )
    
     task_download_from_s3 = PythonOperator(

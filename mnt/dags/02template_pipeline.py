@@ -6,21 +6,18 @@ import psycopg2
 import boto3
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
-import boto3
-from airflow.models import Variable
 
 from airflow import DAG
-from airflow.sensors.external_task_sensor import ExternalTaskSensor
+
 from airflow.providers.postgres.operators.postgres import PostgresOperator
-from airflow.providers.amazon.aws.operators.s3 import S3FileTransformOperator
 from airflow.operators.python_operator import PythonOperator
-from airflow.providers.amazon.aws.transfers.sql_to_s3 import SqlToS3Operator
-from airflow.providers.amazon.aws.transfers.s3_to_sql import S3ToSqlOperator
+#from airflow.providers.amazon.aws.transfers.sql_to_s3 import SqlToS3Operator
+#from airflow.providers.amazon.aws.transfers.s3_to_sql import S3ToSqlOperator
 from airflow.hooks.postgres_hook import PostgresHook
 from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.dummy import DummyOperator
-from airflow.providers.amazon.aws.operators.athena import AthenaOperator
-from airflow.providers.mysql.transfers.s3_to_mysql import S3ToMySqlOperator
+#from airflow.providers.amazon.aws.operators.athena import AthenaOperator
+
 
 
 s3_hook = S3Hook(aws_conn_id='minio')
@@ -53,7 +50,8 @@ def rename_file(ti, new_name: str) -> None:
 
 session_folder = f"src/session/{{{{execution_date.strftime('%Y/%m')}}}}/table_product_demand_{{{{ds}}}}.csv"
 
-def transform_product_to_material(ds, next_ds, data_interval_start):
+
+def transform_material_by_date(ds, next_ds, data_interval_start):
     # Read CSV file using Pandas
     df = pd.read_csv('dags/temp/table_material_demand.csv', index_col=False)
     # # Perform query on the data 
@@ -141,9 +139,9 @@ with DAG(
         }
     )
 
-    task_upload_to_s3 = PythonOperator(
+    upload_transfromed_files_to_s3 = PythonOperator(
         task_id='upload_transfromed_files_to_s3',
-        python_callable=transform_product_to_material,
+        python_callable=transform_material_by_date,
     )
 
     download_transformed_file_from_datalake = PythonOperator(
@@ -151,6 +149,8 @@ with DAG(
         python_callable=_download_file_from_datalake
     )
 
+    ### dbo.table_material_demand_2023_05
+    ## 1 table per month
     create_table_in_data_warehouse = PostgresOperator(
         task_id='create_table_in_data_warehouse',
         postgres_conn_id="pg_container",
@@ -174,6 +174,6 @@ with DAG(
     end = DummyOperator(task_id='end')
 
     ##download from datalake -> local for transforming -> postgres (as a datawarehouse)
-    start  >> task_download_from_s3 >> task_rename_file >> task_upload_to_s3 >> download_transformed_file_from_datalake
+    start  >> task_download_from_s3 >> task_rename_file >> upload_transfromed_files_to_s3 >> download_transformed_file_from_datalake
 
     download_transformed_file_from_datalake >> create_table_in_data_warehouse >> load_data_into_data_warehouse >> end
