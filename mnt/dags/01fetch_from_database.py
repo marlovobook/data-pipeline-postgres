@@ -81,6 +81,8 @@ def transform_product_to_material():
 
     # ------------- Perform query on the data <<--This will be on another dag -----------------#
 
+    
+    # --------------- the code below upload transformed file to S3 ---------------------#
     # Upload query result back to S3
     query_result_csv = f'dags/result_csv/TEMP_FILE.csv'
     df.to_csv(query_result_csv, index=False)

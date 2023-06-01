@@ -54,13 +54,31 @@ session_folder = f"src/session/{{{{execution_date.strftime('%Y/%m')}}}}/table_pr
 def transform_material_by_date(ds, next_ds, data_interval_start):
     # Read CSV file using Pandas
     df = pd.read_csv('dags/temp/table_material_demand.csv', index_col=False)
+
+
+    # -------------------------Key code -------------------------#
+
     # # Perform query on the data 
+    #query the date that >= start_date of the dag but < today_date
     df = df.query(f"date >= '{ds}' and date < '{next_ds}'")
+
+    # -------------------------Key code -------------------------#
+
     #df = pd.to_datetime(df['date'])
     # Upload query result back to S3
-    query_result_csv = f'dags/result_csv/TEMP_FILE.csv'
+    query_result_csv = f'dags/result_csv/TEMP_FILE.csv' #<<--- the next day file will replace this, so you won't have multiply .csv
     df.to_csv(query_result_csv, index=False)
+
+    '''
+    this code will CREATE partition for each year and month in S3
+    for example, Folder 2022, folder 2023
+    and each year folder will have month folder: 01 02 03 to 12
+    The file table_material_demand_2023-05-18.csv will be in
+            datalake/session/2023/05/table_material_demand_2023-05-18.csv
+    
+    '''
     ds_str = data_interval_start.strftime('%Y/%m')
+
     s3_hook.load_file(
         filename=query_result_csv,
         key=f"src/session/{ds_str}/table_material_demand_{ds}.csv",
@@ -151,6 +169,13 @@ with DAG(
 
     ### dbo.table_material_demand_2023_05
     ## 1 table per month
+    """
+    dbo.table_material_demand_{{{{data_interval_start.strftime('%Y_%m')}}}}
+    if today is 2023-02-15
+    create table table_material_demand_2023_02
+    in schema dbo
+    ### the next dah will insert data of the today into this table
+    """
     create_table_in_data_warehouse = PostgresOperator(
         task_id='create_table_in_data_warehouse',
         postgres_conn_id="pg_container",
