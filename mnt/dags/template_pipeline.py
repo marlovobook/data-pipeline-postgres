@@ -10,6 +10,7 @@ import boto3
 from airflow.models import Variable
 
 from airflow import DAG
+from airflow.sensors.external_task_sensor import ExternalTaskSensor
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 from airflow.providers.amazon.aws.operators.s3 import S3FileTransformOperator
 from airflow.operators.python_operator import PythonOperator
@@ -21,12 +22,7 @@ from airflow.operators.dummy import DummyOperator
 from airflow.providers.amazon.aws.operators.athena import AthenaOperator
 from airflow.providers.mysql.transfers.s3_to_mysql import S3ToMySqlOperator
 
-default_args = {
-    'owner' : 'BOOK',
-    'retries': 2,
-    'retry_delay': timedelta(seconds=15),
-    'catchup' : False
-}
+
 s3_hook = S3Hook(aws_conn_id='minio')
 postgres_hook = PostgresHook(postgres_conn_id='pg_container')
 bucket_name = 'datalake'
@@ -88,20 +84,20 @@ def _download_file_from_datalake(ds, data_interval_start):
     return file_name_material
 
 def  _load_data_into_data_warehouse(**context):
-    
+    data_interval_start = context["data_interval_start"]
     postgres_hook = PostgresHook(postgres_conn_id="pg_container")
     conn = postgres_hook.get_conn()
     cursor = conn.cursor()
 
     # Get file name from Xcoms
     file_name_material = context["ti"].xcom_pull(task_ids="download_transformed_file_from_datalake", key="return_value")
-
+    ds_str = data_interval_start.strftime('%Y_%m')
     # Copy file to datawarehouse in this case is postgres
     postgres_hook.copy_expert(
 
-        """
+        f"""
             COPY
-                dbo.table_material_demand
+                dbo.table_material_demand_{ds_str}
 
             FROM STDIN DELIMITER ',' CSV HEADER
     
@@ -111,9 +107,20 @@ def  _load_data_into_data_warehouse(**context):
 
     )
 
-# Define your DAG
+# Define your DAG ##
+default_args = {
+    'owner' : 'BOOK',
+    'retries': 2,
+    'retry_delay': timedelta(seconds=15),
+    ######## w8 previous task ##########
+    'wait_for_downstream' : True,
+    'depends_on_past':True,
+    ######## w8 previous task ##########
+    'catchup' : False, 
+}
 with DAG(
     dag_id='pipeline_full_v2',
+    default_args=default_args,
     description='Copy file from PostgreSQL to MinIO, transform data in S3, and upload back to PostgreSQL',
     schedule_interval='@daily',  # Set your desired schedule interval
     start_date=datetime(2023, 4, 20),  # Set the start date of the DAG
@@ -147,8 +154,8 @@ with DAG(
     create_table_in_data_warehouse = PostgresOperator(
         task_id='create_table_in_data_warehouse',
         postgres_conn_id="pg_container",
-        sql="""
-            CREATE TABLE IF NOT EXISTS dbo.table_material_demand (
+        sql=f"""
+            CREATE TABLE IF NOT EXISTS dbo.table_material_demand_{{{{data_interval_start.strftime('%Y_%m')}}}} (
                 date DATE,
                 shop_id VARCHAR(100),
                 raw_material VARCHAR(100),
@@ -164,11 +171,7 @@ with DAG(
     )
 
 
-
     end = DummyOperator(task_id='end')
-
-    # Set task dependencies
-    #fetch_from_database file to big temp stop
 
     ##download from datalake -> local for transforming -> postgres (as a datawarehouse)
     start  >> task_download_from_s3 >> task_rename_file >> task_upload_to_s3 >> download_transformed_file_from_datalake
