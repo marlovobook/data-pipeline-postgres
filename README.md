@@ -24,6 +24,7 @@ Postgres (Database) [dag]>> sensors >> Transform in MinIO[dag]
 
 
 ## Full version readme on Medium :
+https://medium.com/@pyramidofmerlin/data-engineer-project-postgres-database-to-s3-datalake-to-postgres-data-warehouse-prep-ba407021e716
 ------
 Data Engineer Project: Postgres (Database)to S3 (Datalake) to Postgres (Datawarehouse)
 This is my side project while I was an intern at DataCafe Thailand
