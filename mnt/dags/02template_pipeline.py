@@ -113,7 +113,7 @@ def  _load_data_into_data_warehouse(**context):
 
         f"""
             COPY
-                dbo.table_material_demand_{ds_str}
+                dbo.table_material_demand
 
             FROM STDIN DELIMITER ',' CSV HEADER
     
@@ -135,7 +135,7 @@ default_args = {
     'catchup' : False, 
 }
 with DAG(
-    dag_id='02_datalake_to_datawarehouse',
+    dag_id='02_datalake_to_datawarehouseV02',
     default_args=default_args,
     description='Copy file from PostgreSQL to MinIO, transform data in S3, and upload back to PostgreSQL',
     schedule_interval='@daily',  # Set your desired schedule interval
@@ -180,7 +180,7 @@ with DAG(
         task_id='create_table_in_data_warehouse',
         postgres_conn_id="pg_container",
         sql=f"""
-            CREATE TABLE IF NOT EXISTS dbo.table_material_demand_{{{{data_interval_start.strftime('%Y_%m')}}}} (
+            CREATE TABLE IF NOT EXISTS dbo.table_material_demand (
                 date DATE,
                 shop_id VARCHAR(100),
                 raw_material VARCHAR(100),
