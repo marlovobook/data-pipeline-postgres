@@ -98,7 +98,11 @@ That's it!
 
 ```
 I will use ETL method
+
+with *Incremental load*
+
 ```
+![Alt text](images/pipeline_ETL.jpg)
 
 Postgres (Database) to S3 (Datalake) to Postgres (Data Warehouse)
 This is the rough flow; however, in detail, it will be like this:
@@ -136,7 +140,9 @@ so it takes less time
 ```
 df = df.query(f"date >= '{ds}' and date < '{next_ds}'")
 ```
-I believed there are better way than split it into 2 dags, but I will stick with this method for now
+I believed there are better way than split it into 2 dags.
+
+However, you can literally make it 1 dag as you can see on the Data Architect picture
 
  - - - - - 
 
@@ -561,7 +567,7 @@ def  _load_data_into_data_warehouse(**context):
 
         f"""
             COPY
-                dbo.table_material_demand_{ds_str}
+                dbo.table_material_demand
 
             FROM STDIN DELIMITER ',' CSV HEADER
     
@@ -751,9 +757,9 @@ def _download_file_from_datalake(ds, data_interval_start):
 
 this will save the file name on Xcoms
 
-create_table_in_data_warehouse
+create_table_in_data_warehouse which can be plugged to BI platefrom and make it always up-to-date dash board
 
-I will create 1 Table per month (Which can be configured up to you)
+
 
 ```
     ### dbo.table_material_demand_2023_05
@@ -768,7 +774,7 @@ I will create 1 Table per month (Which can be configured up to you)
         task_id='create_table_in_data_warehouse',
         postgres_conn_id="pg_container",
         sql=f"""
-            CREATE TABLE IF NOT EXISTS dbo.table_material_demand_{{{{data_interval_start.strftime('%Y_%m')}}}} (
+            CREATE TABLE IF NOT EXISTS dbo.table_material_demand (
                 date DATE,
                 shop_id VARCHAR(100),
                 raw_material VARCHAR(100),
