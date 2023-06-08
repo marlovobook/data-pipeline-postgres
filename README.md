@@ -138,7 +138,9 @@ so it takes less time
 ```
 df = df.query(f"date >= '{ds}' and date < '{next_ds}'")
 ```
-I believed there are better way than split it into 2 dags, but I will stick with this method for now
+I believed there are better way than split it into 2 dags.
+
+However, you can literally make it 1 dag as you can see on the Data Architect picture
 
  - - - - - 
 
