@@ -94,7 +94,7 @@ Postgres - as database and data warehouse
 minio (S3)-as a datalake
 airflow - of course, as a workflow management platform 
 
-That's it!
+That's it!!!
 …also, Github, to save the source code
 
 ```
