@@ -99,6 +99,8 @@ That's it!
 ```
 I will use ETL method
 
+with *Incremental load*
+
 ```
 ![Alt text](images/pipeline_ETL.jpg)
 
