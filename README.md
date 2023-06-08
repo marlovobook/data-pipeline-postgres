@@ -98,7 +98,9 @@ That's it!
 
 ```
 I will use ETL method
+
 ```
+![Alt text](images/pipeline_ETL.jpg)
 
 Postgres (Database) to S3 (Datalake) to Postgres (Data Warehouse)
 This is the rough flow; however, in detail, it will be like this:
