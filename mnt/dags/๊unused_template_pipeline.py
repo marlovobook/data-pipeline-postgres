@@ -26,10 +26,12 @@ bucket_name = 'datalake'
 s3_key='src/table_product_demand.csv'
 
 
-def download_from_s3():
+def download_from_s3(ds, data_interval_start):
+
+    ds_str = data_interval_start.strftime('%Y/%m')
     s3_hook = S3Hook(aws_conn_id='minio')
     s3_bucket ='datalake'
-    s3_key =f'/src/table_material_demand.csv'
+    s3_key =f'/src/session_raw_data/{ds_str}/table_product_demand_{ds}.csv'
     
     # Download CSV file from S3
     local_path = 'dags/temp'
@@ -74,7 +76,7 @@ def transform_material_by_date(ds, next_ds, data_interval_start):
     for example, Folder 2022, folder 2023
     and each year folder will have month folder: 01 02 03 to 12
     The file table_material_demand_2023-05-18.csv will be in
-            datalake/session/2023/05/table_material_demand_2023-05-18.csv
+            datalake/src/session_transformed_data/2023/05/table_material_demand_2023-05-18.csv
     
     '''
     ds_str = data_interval_start.strftime('%Y/%m')
@@ -93,7 +95,7 @@ def _download_file_from_datalake(ds, data_interval_start):
     ds_str = data_interval_start.strftime('%Y/%m')
     s3_hook = S3Hook(aws_conn_id="minio")
     file_name_material = s3_hook.download_file(
-        key=f"src/session/{ds_str}/table_material_demand_{ds}.csv",
+        key=f"src/session_transformed_data/{ds_str}/table_material_demand_{ds}.csv",
         bucket_name="datalake",
     )
 
@@ -113,7 +115,7 @@ def  _load_data_into_data_warehouse(**context):
 
         f"""
             COPY
-                dbo.table_material_demand_{ds_str}
+                dbo.table_material_demand
 
             FROM STDIN DELIMITER ',' CSV HEADER
     
@@ -135,7 +137,7 @@ default_args = {
     'catchup' : False, 
 }
 with DAG(
-    dag_id='02_datalake_to_datawarehouse',
+    dag_id='02_datalake_to_datawarehouseV02',
     default_args=default_args,
     description='Copy file from PostgreSQL to MinIO, transform data in S3, and upload back to PostgreSQL',
     schedule_interval='@daily',  # Set your desired schedule interval
@@ -180,7 +182,7 @@ with DAG(
         task_id='create_table_in_data_warehouse',
         postgres_conn_id="pg_container",
         sql=f"""
-            CREATE TABLE IF NOT EXISTS dbo.table_material_demand_{{{{data_interval_start.strftime('%Y_%m')}}}} (
+            CREATE TABLE IF NOT EXISTS dbo.table_material_demand (
                 date DATE,
                 shop_id VARCHAR(100),
                 raw_material VARCHAR(100),
