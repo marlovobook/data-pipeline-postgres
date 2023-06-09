@@ -164,7 +164,7 @@ with DAG(
         task_id='check_product_demand_files',
         external_dag_id='01_database_to_datalake',
         external_task_id='fetch_from_database',
-        timeout=30,
+        timeout=1800,
         poke_interval=30,
         mode='reschedule'
     )
