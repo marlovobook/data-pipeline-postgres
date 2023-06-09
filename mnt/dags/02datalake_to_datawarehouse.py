@@ -2,8 +2,6 @@ import os
 import logging
 import csv
 import pandas as pd
-import psycopg2
-import boto3
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
 
@@ -118,13 +116,23 @@ def  _load_data_into_data_warehouse(**context):
     file_name_material = context["ti"].xcom_pull(task_ids="download_transformed_file_from_datalake", key="return_value")
     
     """
-    These lines of code could be used if want to create
+    The below lines of code could be used if want to create
     csv file with full month or full year instead of full day
+    
+    data_interval_start = context["data_interval_start"]
+    ds_str = data_interval_start.strftime('%Y_%m')
+
+    For example, 
+
+    COPY
+                dbo.table_material_demand_{ds_str}
+
+                ===> dbo.table_material_demand_2022_05 
+                (which will contain 1-month transaction)
     """
-    #data_interval_start = context["data_interval_start"]
-    #ds_str = data_interval_start.strftime('%Y_%m')
    
     # Copy file to datawarehouse in this case is postgres
+
     postgres_hook.copy_expert(
 
         f"""
@@ -161,11 +169,19 @@ with DAG(
     
     ext_task_sensor = ExternalTaskSensor(
         
+        #allowed_states will be ['success'] by default 
+        #meaning this task will be success only the targeted task is in success stage
         task_id='check_product_demand_files',
         external_dag_id='01_database_to_datalake',
         external_task_id='fetch_from_database',
+        # the worker wil poke to find the successful every 30s and stop working after 1800s
         timeout=1800,
         poke_interval=30,
+
+
+        # Two mode:
+        ## 'poke' = stand by mode while waiting for next poke
+        ### 'reschedule' = sensor will terminate inself until the next poke
         mode='reschedule'
     )
     
@@ -231,5 +247,5 @@ with DAG(
 
     end = DummyOperator(task_id='end')
 
-    ##download from datalake -> local for transforming -> postgres (as a datawarehouse)
+    ##download from datalake -> local for transforming -> back to S3 -> local -> postgres (as a datawarehouse)
     ext_task_sensor >> start  >> task_download_from_s3 >> task_rename_file >> task_upload_to_s3 >> download_transformed_file_from_datalake >> create_table_in_data_warehouse >> load_data_into_data_warehouse >> end

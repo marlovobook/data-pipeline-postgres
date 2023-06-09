@@ -3,10 +3,8 @@ import logging
 import csv
 import pandas as pd
 import psycopg2
-import boto3
 from datetime import datetime, timedelta
 from tempfile import NamedTemporaryFile
-import boto3
 
 
 from airflow import DAG
