@@ -17,17 +17,14 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.dummy import DummyOperator
 
 
-# s3_hook = S3Hook(aws_conn_id='minio')
-# postgres_hook = PostgresHook(postgres_conn_id='pg_container')
-# bucket_name = 'datalake'
-
+# Function for loading .csv from local to Postgres
 def _load_data():
 
     postgres_hook = PostgresHook(postgres_conn_id='pg_container')
     conn = postgres_hook.get_conn()
     cursor = conn.cursor()
-    #cursor.execute("SET datestyle = 'ISO, DMY';")
     
+    #Path in local
     file_name = 'dags/temp/online_retail_origin.csv'
 
     postgres_hook.copy_expert(
@@ -42,9 +39,6 @@ def _load_data():
         file_name,
 
     )
-    # conn.commit()
-    # cursor.close()
-    # conn.close()
 
 
 
@@ -71,6 +65,8 @@ with DAG(
     
     start = DummyOperator(task_id="start")
 
+
+    #Create Table in postgres
     upload_retail_origin = PostgresOperator(
         task_id='create_online_retail_origin_in_data_warehouse',
         postgres_conn_id="pg_container",
@@ -98,11 +94,8 @@ with DAG(
         """,
     )
 
-   #D:\Docker\demo_etl\postgresql\data\online_retail_origin.csv
-
-    #COPY dbo.table_online_retail_origin(id, Invoice, StockCode, Description,Quantity,InvoiceDate,Price,Customer_ID,Country,last_updated)
-         #FROM 'dags/temp/online_retail_origin.csv' DELIMITER ',' CSV HEADER;##
-
+    #Call the _load_data function
+    
     load_data = PythonOperator(
         task_id="load_data",
         python_callable=_load_data,

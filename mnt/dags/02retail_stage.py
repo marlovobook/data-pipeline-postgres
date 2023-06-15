@@ -17,19 +17,19 @@ from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.dummy import DummyOperator
 
 
-# s3_hook = S3Hook(aws_conn_id='minio')
-# postgres_hook = PostgresHook(postgres_conn_id='pg_container')
-# bucket_name = 'datalake'
+#Create function for loading staged table into postgres
 
 def _load_data_stage():
 
     postgres_hook = PostgresHook(postgres_conn_id='pg_container')
     conn = postgres_hook.get_conn()
     cursor = conn.cursor()
-    #cursor.execute("SET datestyle = 'ISO, DMY';")
     
     file_name = 'dags/temp/online_retail_stage.csv'
 
+    #Copy_expery needs to call file_name
+    #STDIN means Standard Input = an input stream where data issent to and read by a program
+    #In this case, it is file_name variable
     postgres_hook.copy_expert(
 
         """
@@ -42,9 +42,7 @@ def _load_data_stage():
         file_name,
 
     )
-    # conn.commit()
-    # cursor.close()
-    # conn.close()
+
 
 
 
