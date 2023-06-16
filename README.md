@@ -211,6 +211,7 @@ As we discussed beforehand that this pipeline show the simeple query-based CDC w
 The 'distinct' part is to call the lastest update on the data and give it a name of 'CDC'
 
 That Join ID on table_online_retail_origin and table_online_retail_stage
+
 If operation column = 'I' : to *insert* this row of Data if there is no the same ID on both table
 
 if operation column = 'D' : ID number matched, *delete* no matter what

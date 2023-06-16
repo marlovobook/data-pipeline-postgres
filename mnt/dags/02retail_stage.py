@@ -96,6 +96,7 @@ with DAG(
     )
 
     #merge the changes from staging table into target table
+    #possible to make in incremental load
 
     merge_changes_table = PostgresOperator(
         task_id = "merge_chages",
@@ -146,8 +147,10 @@ with DAG(
         task_id="load_data_stage",
         python_callable=_load_data_stage,
     )
-    end = DummyOperator(task_id='end')
+    delete_temp_table = DummyOperator(task_id='delete_temp_table')
+
+    
 
     # Set task dependencies
-    start >> upload_retail_stage >> load_data >> merge_changes_table >> end
+    start >> upload_retail_stage >> load_data >> merge_changes_table >> delete_temp_table
     

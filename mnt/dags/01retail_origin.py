@@ -93,7 +93,7 @@ with DAG(
         
         """,
     )
-
+    
     #Call the _load_data function
     
     load_data = PythonOperator(
