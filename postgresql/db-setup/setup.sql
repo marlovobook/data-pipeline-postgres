@@ -6,7 +6,7 @@ CREATE TABLE dbo.table_product_demand (
   shop_id VARCHAR(100),
   date TIMESTAMP,
   product_name VARCHAR(100),
-  demand VARCHAR(100)
+  demand FLOAT
 );
 
 COPY dbo.table_product_demand(shop_id, date, product_name, demand)

@@ -15,7 +15,7 @@ from airflow.providers.amazon.aws.transfers.sql_to_s3 import SqlToS3Operator
 from airflow.hooks.postgres_hook import PostgresHook
 from airflow.hooks.S3_hook import S3Hook
 from airflow.operators.dummy import DummyOperator
-
+from airflow.providers.common.sql.operators.sql import SQLColumnCheckOperator
 
 s3_hook = S3Hook(aws_conn_id='minio')
 postgres_hook = PostgresHook(postgres_conn_id='pg_container')
@@ -40,7 +40,7 @@ with DAG(
     default_args=default_args,
     description='Copy file from PostgreSQL(database) to MinIO(datalake), the transform and load will be in another dag file',
     schedule_interval='@daily',  # Set your desired schedule interval '@daily'
-    start_date=datetime(2023, 4, 25),  # Set the start date of the DAG
+    start_date=datetime(2023, 7, 25),  # Set the start date of the DAG
 
 )as dags:
     
@@ -58,11 +58,42 @@ with DAG(
         pd_kwargs={"index": False} #<<---- if True, they will be another column containing numbers
     )
    
+    data_validation_before_extract = SQLColumnCheckOperator(
 
+            task_id='data_validation_before_extract',
+            table='dbo.table_product_demand',
+            column_mapping={
+                "demand" : {
+
+                    #count that there are 0 row of null
+                    "null_check" : {
+                        "equal_to" : 0,
+                        
+                        #tolerance is a percentage 
+                        #that the result may be out of bounds 
+                        #but still considered successful.
+                        # 0 = 0%; 1 = 100%
+                        "tolerance" : 0,    
+                    },
+
+                    "min" : {
+                        "geq_to" : 0
+                    }
+                }
+
+
+            },
+            # "geq_to" : -1012
+            partition_clause=None,
+            conn_id='pg_container',
+            database=None,
+            accept_none=True,
+
+        )
     
 
     end = DummyOperator(task_id='end')
 
     # Set task dependencies
-    start >> fetch_from_database >> end
+    start >> data_validation_before_extract >> fetch_from_database >> end
     

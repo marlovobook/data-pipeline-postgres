@@ -16,7 +16,7 @@ from airflow.hooks.postgres_hook import PostgresHook
 from airflow.hooks.S3_hook import S3Hook
 from airflow.sensors.external_task import ExternalTaskSensor
 #from airflow.providers.amazon.aws.operators.athena import AthenaOperator
-
+from airflow.providers.common.sql.operators.sql import SQLColumnCheckOperator
 
 
 s3_hook = S3Hook(aws_conn_id='minio')
@@ -163,7 +163,7 @@ with DAG(
     default_args=default_args,
     description='Copy file from PostgreSQL to MinIO, transform data in S3, and upload back to PostgreSQL',
     schedule_interval='@daily',  # Set your desired schedule interval
-    start_date=datetime(2023, 4, 25),  # Set the start date of the DAG
+    start_date=datetime(2023, 7, 25),  # Set the start date of the DAG
 
 )as dags:
     
@@ -233,7 +233,7 @@ with DAG(
                 date DATE,
                 shop_id VARCHAR(100),
                 raw_material VARCHAR(100),
-                demand_kg VARCHAR(100)
+                demand_kg FLOAT
             )
         
         """,
@@ -243,9 +243,43 @@ with DAG(
         task_id="load_data_into_data_warehouse",
         python_callable=_load_data_into_data_warehouse
     )
+    """
+    Data Validation
+    """
+    data_validation_after_extract = SQLColumnCheckOperator(
 
+            task_id='data_validation_after_extract',
+            table='dbo.table_material_demand',
+            column_mapping={
+                "demand_kg" : {
+
+                    #count that there are 0 row of null
+                    "null_check" : {
+                        "equal_to" : 0,
+                        
+                        #tolerance is a percentage 
+                        #that the result may be out of bounds 
+                        #but still considered successful.
+                        # 0 = 0%; 1 = 100%
+                        "tolerance" : 0,    
+                    },
+
+                    "min" : {
+                        "geq_to" : 0
+                    }
+                }
+
+
+            },
+            # "geq_to" : -1012
+            partition_clause=None,
+            conn_id='pg_container',
+            database=None,
+            accept_none=True,
+
+        )
 
     end = DummyOperator(task_id='end')
 
     ##download from datalake -> local for transforming -> back to S3 -> local -> postgres (as a datawarehouse)
-    ext_task_sensor >> start  >> task_download_from_s3 >> task_rename_file >> task_upload_to_s3 >> download_transformed_file_from_datalake >> create_table_in_data_warehouse >> load_data_into_data_warehouse >> end
+    ext_task_sensor >> start  >> task_download_from_s3 >> task_rename_file >> task_upload_to_s3 >> download_transformed_file_from_datalake >> create_table_in_data_warehouse >> load_data_into_data_warehouse >> data_validation_after_extract >> end
